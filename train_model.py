@@ -1,6 +1,14 @@
 """
-train_model.py  –  v4 (refactored)
+train_model.py  –  v5 (fix accuracy=0 & loss meledak)
 Training pipeline ECG Holter Arrhythmia Detection – 11 kelas single-label.
+
+Perubahan dari v4:
+  FIX 1: Hapus class_weights dari CrossEntropyLoss.
+          WeightedRandomSampler + class_weights bersamaan menyebabkan
+          sinyal gradient saling batalkan → accuracy stuck di 0.
+  FIX 2: Sanity check loss awal (seharusnya ≈ ln(11) = 2.398).
+  FIX 3: Training log di-reset saat mulai dari awal (bukan resume).
+  FIX 4: label_smoothing default 0.1 → 0.05.
 
 Cara pakai:
   python train_model.py                              # default
@@ -31,12 +39,12 @@ PROJECT_ROOT = Path("C:/Users/Myrza/Desktop/project/Project Arrythmia")
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from config_path import (
-    HOLTER_FORMAT_DIR, TRAIN_SPLIT_CSV, VAL_SPLIT_CSV, TEST_SPLIT_CSV,
+    HOLTER_FORMAT_DIR, NUM_CHANNELS, TRAIN_SPLIT_CSV, VAL_SPLIT_CSV, TEST_SPLIT_CSV,
     CNN_CHECKPOINT_DIR, CNN_BEST_MODEL, CNN_LAST_MODEL,
     SMOTE_CACHE_DIR, NUM_ARRHYTHMIA_CLASSES, ARRHYTHMIA_LABELS,
 )
 from holter_dataset import HolterECGDataset
-from resnet1d import ResNet1D
+from resnet1d import ResNet1D, build_model
 
 
 
@@ -238,7 +246,13 @@ def evaluate_test(model, loader, criterion, device):
 def train(args: argparse.Namespace):
 
     # ── Device ───────────────────────────────────────────────────────────────
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    if torch.cuda.is_available():
+        device = torch.device("cuda:0")
+        torch.backends.cudnn.benchmark = True
+        print("Using GPU", torch.cuda.get_device_name(0))
+    else:
+        device = torch.device("cpu")
+                          
 
     print("=" * 65)
     print("ECG Holter Arrhythmia Training  –  v4")
@@ -275,7 +289,7 @@ def train(args: argparse.Namespace):
         print(f"    {name:22s}: {cnt:,}")
 
     # Windows: num_workers wajib 0
-    nw = 0 if sys.platform == 'win32' else args.num_workers
+    nw = args.num_workers
 
     def make_loader(ds, shuffle=False, sampler=None, drop_last=False):
         return DataLoader(ds, batch_size=args.batch_size,
@@ -288,16 +302,45 @@ def train(args: argparse.Namespace):
     test_loader  = make_loader(test_ds)
 
     # ── Model ─────────────────────────────────────────────────────────────────
-    model = ResNet1D(args.model_type, dropout=args.dropout).to(device)
+    model = build_model(
+        args.model_type,
+        dropout=args.dropout,
+        num_channels=NUM_CHANNELS,
+        num_classes=NUM_ARRHYTHMIA_CLASSES
+        ).to(device)
+    
     n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print(f"\n  Params: {n_params:,}")
 
-    # ── Loss: nn.CrossEntropyLoss built-in (label_smoothing + class weights) ──
-    # Lebih simpel dari custom LabelSmoothingCrossEntropy, sama hasilnya.
+    # ── Loss ──────────────────────────────────────────────────────────────────
+    # TIDAK pakai class weights di sini – WeightedRandomSampler sudah menangani
+    # keseimbangan kelas. Menggabungkan keduanya menyebabkan sinyal gradient
+    # saling membatalkan dan loss tidak konvergen.
     criterion = nn.CrossEntropyLoss(
-        weight          = train_ds.get_class_weights().to(device),
         label_smoothing = args.label_smoothing,
     )
+
+    # ── Sanity Check: Verifikasi loss awal ────────────────────────────────────
+    # Dengan random init & 11 kelas, loss seharusnya ≈ ln(11) = 2.398
+    # Jika jauh berbeda, ada masalah data/label/model.
+    model.eval()
+    with torch.no_grad():
+        sample_ecg, sample_lbl = next(iter(train_loader))
+        sample_ecg = sample_ecg.to(device)
+        sample_lbl = sample_lbl.to(device)
+        sanity_logits = model(sample_ecg)
+        sanity_loss   = nn.CrossEntropyLoss()(sanity_logits, sample_lbl)
+        expected_loss = __import__('math').log(NUM_ARRHYTHMIA_CLASSES)
+        print(f"\n  ── Sanity Check ──")
+        print(f"  Loss awal     : {sanity_loss.item():.4f}")
+        print(f"  Expected (≈)  : {expected_loss:.4f}  [ln({NUM_ARRHYTHMIA_CLASSES})]")
+        print(f"  Label range   : {sample_lbl.min().item()}–{sample_lbl.max().item()}")
+        print(f"  Logit range   : {sanity_logits.min().item():.3f}–{sanity_logits.max().item():.3f}")
+        if sanity_loss.item() < 0.5 or sanity_loss.item() > 10.0:
+            print(f"  ⚠ WARNING: Loss tidak normal! Periksa label/data/model init.")
+        else:
+            print(f"  ✓ Loss normal, training siap.")
+    model.train()
 
     # ── Optimizer ─────────────────────────────────────────────────────────────
     optimizer = optim.AdamW(model.parameters(),
@@ -330,6 +373,23 @@ def train(args: argparse.Namespace):
 
     log_path = CNN_CHECKPOINT_DIR / "training_log.json"
     CNN_CHECKPOINT_DIR.mkdir(parents=True, exist_ok=True)
+
+    # Buat log baru saat mulai dari awal (bukan resume) – hindari log lama tercampur
+    if not args.resume or not log_path.exists():
+        config_dict = vars(args).copy()
+        config_dict['model_type']    = args.model_type
+        config_dict['num_classes']   = NUM_ARRHYTHMIA_CLASSES
+        config_dict['num_channels']  = NUM_CHANNELS
+        config_dict['window_size']   = 2500
+        config_dict['stride_train']  = args.stride_train
+        config_dict['stride_val']    = 2500
+        with open(log_path, 'w') as f:
+            json.dump({
+                'config':     config_dict,
+                'start_time': datetime.now().isoformat(),
+                'epochs':     [],
+            }, f, indent=2)
+        print(f"  ✓ Log baru dibuat: {log_path}")
 
     # ── Training Loop ──────────────────────────────────────────────────────────
     print("\n" + "=" * 65)
@@ -443,7 +503,8 @@ def parse_args():
     p.add_argument('--batch-size',  type=int,   default=32)
     p.add_argument('--lr',          type=float, default=1e-3)
     p.add_argument('--weight-decay',type=float, default=1e-4)
-    p.add_argument('--label-smoothing', type=float, default=0.1)
+    p.add_argument('--label-smoothing', type=float, default=0.05,
+                   help='Label smoothing (0=off, 0.05 recommended, jangan >0.1)')
     p.add_argument('--grad-clip',   type=float, default=1.0)
     # Scheduler
     p.add_argument('--scheduler',   default='cosine', choices=['cosine', 'plateau', 'step'])
@@ -469,7 +530,12 @@ if __name__ == '__main__':
     torch.manual_seed(42)
     np.random.seed(42)
     if torch.cuda.is_available():
+        device = torch.device('cuda:0')
         torch.cuda.manual_seed_all(42)
         torch.backends.cudnn.benchmark = True
-
+        print("✓ Using GPU:", torch.cuda.get_device_name(0))
+    else:
+        device = torch.device("cpu")
+        print("⚠ Using CPU")
+    
     train(args)

@@ -1,14 +1,14 @@
 """
-holter_dataset.py  –  REVISI v3
+holter_dataset.py  –  REVISI v4
 Dataset PyTorch untuk ECG Holter – single-label 11 kelas.
 
-Perubahan dari v2:
-  1. Label: single integer (0–10), bukan vektor multi-label float32.
-     → Cocok dengan CrossEntropyLoss & np.argmax di app.
-  2. Normalisasi: int16 / 1000.0 = mV.
-     → Cocok dengan ecg_signal_mv yang diterima ArrhythmiaDetector di app.
-  3. Mendukung loading synthetic SMOTE windows dari .npy file.
-  4. Class weights property untuk weighted CrossEntropy.
+Perubahan dari v3:
+  1. Bug fix: smote_windows/smote_labels diinisialisasi None (bukan boolean True).
+  2. Bug fix: get_class_weights() dan get_sampler() dihitung dari window REAL saja
+     (bukan termasuk SMOTE synthetic). SMOTE menggelembungkan kelas minoritas
+     sehingga kelas Normal tampak "langka" → weight Normal naik drastis → loss meledak.
+  3. Normalisasi weights: mean=1.0 (lebih stabil vs sum=N_classes).
+  4. n_real_windows disimpan untuk memisahkan real vs synthetic.
 """
 
 import torch
@@ -73,9 +73,12 @@ class HolterECGDataset(Dataset):
         # Bangun indeks window dari rekaman asli
         self._build_window_index()
 
+        # Catat jumlah window real (sebelum SMOTE) untuk class weights
+        self.n_real_windows = len(self.window_index)
+
         # Tambahkan synthetic SMOTE windows jika ada
-        self.smote_windows = True
-        self.smote_labels  = True
+        self.smote_windows = None   # None = belum diload
+        self.smote_labels  = None
         if smote_npy_dir is not None:
             self._load_smote_windows(Path(smote_npy_dir))
 
@@ -252,23 +255,43 @@ class HolterECGDataset(Dataset):
     # ── Utility ──────────────────────────────────────────────────────────────
 
     def get_sampler(self) -> WeightedRandomSampler:
-        """Return WeightedRandomSampler berbasis inverse class frequency."""
+        """Return WeightedRandomSampler berbasis inverse class frequency (real data only)."""
+        # Gunakan label real untuk hitung sampling weight
+        real_labels = np.array([
+            w['class_label'] for w in self.window_index[:self.n_real_windows]
+        ])
+        counts   = np.bincount(real_labels, minlength=NUM_ARRHYTHMIA_CLASSES).astype(float)
+        counts   = np.where(counts == 0, 1.0, counts)
+        inv_freq = 1.0 / counts
+
+        # Weight per sample = inverse freq kelas-nya
+        all_labels = np.array([w['class_label'] for w in self.window_index])
+        sample_w   = inv_freq[all_labels]
         return WeightedRandomSampler(
-            weights=self.sample_weights,
-            num_samples=len(self.sample_weights),
-            replacement=True
+            weights    = sample_w.tolist(),
+            num_samples= len(sample_w),
+            replacement= True
         )
 
     def get_class_weights(self) -> torch.Tensor:
         """
-        Return class weights tensor untuk dipakai di CrossEntropyLoss(weight=...).
+        Return class weights tensor untuk CrossEntropyLoss(weight=...).
         Shape: (NUM_ARRHYTHMIA_CLASSES,) float32.
+
+        PENTING: Dihitung dari window REAL saja (bukan SMOTE synthetic).
+        Ini mencegah distorsi ekstrem: SMOTE menambah ratusan ribu synthetic
+        windows ke kelas minoritas, sehingga kelas Normal menjadi "langka"
+        di window_index dan mendapat weight sangat besar → loss tidak stabil.
         """
-        labels = np.array([w['class_label'] for w in self.window_index])
-        counts = np.bincount(labels, minlength=NUM_ARRHYTHMIA_CLASSES).astype(float)
-        counts = np.where(counts == 0, 1.0, counts)
+        # Hanya window real (sebelum SMOTE ditambahkan)
+        real_labels = np.array([
+            w['class_label'] for w in self.window_index[:self.n_real_windows]
+        ])
+        counts  = np.bincount(real_labels, minlength=NUM_ARRHYTHMIA_CLASSES).astype(float)
+        counts  = np.where(counts == 0, 1.0, counts)
         weights = 1.0 / counts
-        weights = weights / weights.sum() * NUM_ARRHYTHMIA_CLASSES
+        # Normalisasi: mean weight = 1.0 agar loss tetap dalam skala normal
+        weights = weights / weights.mean()
         return torch.tensor(weights, dtype=torch.float32)
 
     def class_distribution(self) -> dict:

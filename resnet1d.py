@@ -21,6 +21,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from typing import Optional
 
+from config_path import NUM_ARRHYTHMIA_CLASSES
+
 
 # ============================================================================
 # BUILDING BLOCKS
@@ -185,7 +187,7 @@ class ResNet1D(nn.Module):
 
     def __init__(
         self,
-        num_classes:   int   = 11,
+        num_classes:   int   = None,
         num_channels:  int   = 12,
         base_filters:  int   = 64,
         layers:        list  = None,
