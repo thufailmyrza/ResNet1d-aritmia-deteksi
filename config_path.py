@@ -1,5 +1,5 @@
 """
-config_path.py  –  REVISI v3
+config_path.py  –  REVISI v3.1
 Diselaraskan penuh dengan kontrak app (arrhythmia_detector.py + arrhythmia_parser.py):
 
   ┌─────────────────────────────────────────────────────────────────────────┐
@@ -13,11 +13,10 @@ Diselaraskan penuh dengan kontrak app (arrhythmia_detector.py + arrhythmia_parse
   │                                          region aritmia di app          │
   └─────────────────────────────────────────────────────────────────────────┘
 
-  Perubahan utama dari v2:
-    1. Model: single-label (CrossEntropy), bukan multi-label (BCE)
-    2. Normalisasi: int16 / 1000.0  →  mV  (bukan / 32768)
-    3. arrhythmia.bin: satu int32 per ECG SAMPLE, nilai = 2^class_idx
-    4. ARRHYTHMIA_PRIORITY: urutan prioritas untuk resolusi multi-label PTB-XL
+  v3   : single-label (CrossEntropy), normalisasi mV, arrhythmia.bin per-sample
+  v3.1 : + INCART_ROOT, INCART_FORMAT_DIR, INCART_LABELS_CSV, INCART_STATS_JSON
+         + MERGED_LABELS_CSV, MERGED_STATS_JSON
+         (semua konstanta lain tidak berubah dari v3)
 """
 
 from pathlib import Path
@@ -29,41 +28,65 @@ from pathlib import Path
 PROJECT_ROOT = Path("C:/Users/Myrza/Desktop/project/Project Arrythmia")
 
 # ── Input (Raw Data) ─────────────────────────────────────────────────────────
-PTBXL_ROOT          = PROJECT_ROOT / "RAW DATA" / "ptb-xl"
-PTBXL_DATABASE      = PTBXL_ROOT / "ptbxl_database.csv"
+PTBXL_ROOT           = PROJECT_ROOT / "RAW DATA" / "ptb-xl"
+PTBXL_DATABASE       = PTBXL_ROOT / "ptbxl_database.csv"
 PTBXL_SCP_STATEMENTS = PTBXL_ROOT / "scp_statements.csv"
-PTBXL_RECORDS       = PTBXL_ROOT / "records500"          # rekaman 500 Hz
+PTBXL_RECORDS        = PTBXL_ROOT / "records500"          # rekaman 500 Hz
+
+# ── INCART Input  [BARU v3.1] ─────────────────────────────────────────────────
+# Download : https://physionet.org/content/incartdb/1.0.0/
+# Letakkan : RAW DATA/incart/
+# Isi      : I01.hea  I01.dat  I01.atr  ...  I75.hea  I75.dat  I75.atr
+INCART_ROOT          = PROJECT_ROOT / "RAW DATA" / "incart"
 
 # ── Output root ───────────────────────────────────────────────────────────────
-OUTPUT_ROOT         = PROJECT_ROOT / "OUTPUT"
+OUTPUT_ROOT          = PROJECT_ROOT / "OUTPUT"
 
-# ── Holter format (data biner + CSV labels) ───────────────────────────────────
-HOLTER_FORMAT_DIR   = OUTPUT_ROOT / "HOLTER_V5"
-SMOTE_CACHE_DIR     = HOLTER_FORMAT_DIR / "smote_cache"   # synthetic SMOTE windows
+# ── Holter format – PTB-XL binary windows ─────────────────────────────────────
+HOLTER_FORMAT_DIR    = OUTPUT_ROOT / "HOLTER_V5"
+SMOTE_CACHE_DIR      = HOLTER_FORMAT_DIR / "smote_cache"
+
+# ── INCART format  [BARU v3.1] ────────────────────────────────────────────────
+# preprocess_incart.py menulis binary windows ke sini.
+# Struktur identik dengan HOLTER_FORMAT_DIR:
+#   INCART_FORMAT/batch_00000/incart_000000.bin   (2500 × 12 × int16)
+#   INCART_FORMAT/batch_00000/incart_000001.bin
+#   ...
+INCART_FORMAT_DIR    = OUTPUT_ROOT / "INCART_FORMAT"
+INCART_LABELS_CSV    = INCART_FORMAT_DIR / "incart_labels.csv"
+INCART_STATS_JSON    = INCART_FORMAT_DIR / "incart_statistics.json"
+
+# ── Merged dataset  [BARU v3.1] ───────────────────────────────────────────────
+# merge_datasets.py menggabungkan PTB-XL + INCART, kemudian MENIMPA
+# TRAIN_SPLIT_CSV / VAL_SPLIT_CSV / TEST_SPLIT_CSV di HOLTER_FORMAT_DIR
+# → semua training code yang sudah ada TIDAK perlu diubah sama sekali.
+MERGED_LABELS_CSV    = HOLTER_FORMAT_DIR / "merged_labels.csv"
+MERGED_STATS_JSON    = HOLTER_FORMAT_DIR / "merged_statistics.json"
 
 # ── Checkpoints ───────────────────────────────────────────────────────────────
-CHECKPOINTS_DIR     = OUTPUT_ROOT / "checkpoints"
-CNN_CHECKPOINT_DIR  = CHECKPOINTS_DIR / "cnn"
-CNN_BEST_MODEL      = CNN_CHECKPOINT_DIR / "best_model.pth"
-CNN_LAST_MODEL      = CNN_CHECKPOINT_DIR / "last_model.pth"
-CNN_TRAINING_LOG    = CNN_CHECKPOINT_DIR / "training_log.json"
+CHECKPOINTS_DIR      = OUTPUT_ROOT / "checkpoints"
+CNN_CHECKPOINT_DIR   = CHECKPOINTS_DIR / "cnn"
+CNN_BEST_MODEL       = CNN_CHECKPOINT_DIR / "best_model.pth"
+CNN_LAST_MODEL       = CNN_CHECKPOINT_DIR / "last_model.pth"
+CNN_TRAINING_LOG     = CNN_CHECKPOINT_DIR / "training_log.json"
 
 # ── Logs ──────────────────────────────────────────────────────────────────────
-LOGS_DIR            = OUTPUT_ROOT / "logs"
+LOGS_DIR             = OUTPUT_ROOT / "logs"
 
 # ── Exported models ───────────────────────────────────────────────────────────
-EXPORTED_MODELS_DIR = OUTPUT_ROOT / "exported_models"
-ONNX_MODEL_PATH     = EXPORTED_MODELS_DIR / "arrhythmia_model.onnx"
-PKL_MODEL_PATH      = EXPORTED_MODELS_DIR / "arrhythmia_model.pkl"
+EXPORTED_MODELS_DIR  = OUTPUT_ROOT / "exported_models"
+ONNX_MODEL_PATH      = EXPORTED_MODELS_DIR / "arrhythmia_model.onnx"
+PKL_MODEL_PATH       = EXPORTED_MODELS_DIR / "arrhythmia_model.pkl"
 
 # ── Holter format file paths ──────────────────────────────────────────────────
-LABELS_CSV          = HOLTER_FORMAT_DIR / "labels.csv"
-ARRHYTHMIA_BIN      = HOLTER_FORMAT_DIR / "arrhythmia.bin"
-STATISTICS_JSON     = HOLTER_FORMAT_DIR / "dataset_statistics.json"
+LABELS_CSV           = HOLTER_FORMAT_DIR / "labels.csv"        # output PTB-XL saja
+ARRHYTHMIA_BIN       = HOLTER_FORMAT_DIR / "arrhythmia.bin"
+STATISTICS_JSON      = HOLTER_FORMAT_DIR / "dataset_statistics.json"
 
-TRAIN_SPLIT_CSV     = HOLTER_FORMAT_DIR / "train_split.csv"
-VAL_SPLIT_CSV       = HOLTER_FORMAT_DIR / "val_split.csv"
-TEST_SPLIT_CSV      = HOLTER_FORMAT_DIR / "test_split.csv"
+# Split CSV – setelah merge_datasets.py dijalankan = PTB-XL + INCART
+TRAIN_SPLIT_CSV      = HOLTER_FORMAT_DIR / "train_split.csv"
+VAL_SPLIT_CSV        = HOLTER_FORMAT_DIR / "val_split.csv"
+TEST_SPLIT_CSV       = HOLTER_FORMAT_DIR / "test_split.csv"
 
 # ============================================================================
 # HOLTER DEVICE CONSTANTS
@@ -128,7 +151,7 @@ ARRHYTHMIA_CLASSES = {
     10: 'atrial_fibrillation',
 }
 
-ARRHYTHMIA_LABELS    = [ARRHYTHMIA_CLASSES[i] for i in range(11)]
+ARRHYTHMIA_LABELS      = [ARRHYTHMIA_CLASSES[i] for i in range(11)]
 NUM_ARRHYTHMIA_CLASSES = len(ARRHYTHMIA_CLASSES)   # 11
 
 # Nama → class index
@@ -150,7 +173,7 @@ ARRHYTHMIA_PRIORITY = [
     0,   # normal                (fallback)
 ]
 
-# Backward-compat aliases (untuk kode lama)
+# Backward-compat aliases (untuk kode lama yang mengimpor nama ini)
 ARRHYTHMIA_BIT_MAPPING = CLASS_TO_IDX   # nama → class index
 NUM_CLASSES = NUM_ARRHYTHMIA_CLASSES
 
@@ -175,5 +198,5 @@ NUM_CLASSES = NUM_ARRHYTHMIA_CLASSES
 # ============================================================================
 
 import numpy as np
-ARRHYTHMIA_BIN_DTYPE    = np.int32    # tipe data per sample
-NORMAL_FLAG_VALUE       = 1           # 2^0 = 1 (class 0, dikecualikan parser)
+ARRHYTHMIA_BIN_DTYPE = np.int32    # tipe data per sample
+NORMAL_FLAG_VALUE    = 1           # 2^0 = 1 (class 0, dikecualikan parser)

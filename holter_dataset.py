@@ -87,24 +87,106 @@ class HolterECGDataset(Dataset):
 
     # ── Bangun Indeks Window ─────────────────────────────────────────────────
 
+    @staticmethod
+    def _resolve_bin_path(row, data_root: Path):
+        """
+        Resolve path ke file .bin dari baris CSV.
+
+        Mendukung dua format kolom:
+          Format A (PTB-XL)  : batch_dir + output_filename  → data_root/batch_dir/output_filename
+          Format B (INCART)  : filepath (path absolut)      → langsung dipakai
+
+        Urutan coba:
+          1. filepath absolut (INCART)
+          2. data_root / batch_dir / output_filename (PTB-XL)
+          3. INCART_FORMAT_DIR / batch_dir / output_filename (jika source=incart)
+
+        Returns Path atau None jika tidak bisa di-resolve.
+        """
+        from config_path import INCART_FORMAT_DIR, HOLTER_FORMAT_DIR
+
+        # Prioritas 1: filepath absolut (INCART rows)
+        fp = row.get('filepath', None)
+        if fp is not None and str(fp) not in ('', 'nan'):
+            p = Path(str(fp))
+            if p.exists():
+                return p
+
+        # Prioritas 2: data_root / batch_dir / output_filename (PTB-XL rows)
+        batch_dir = row.get('batch_dir', None)
+        out_fname = row.get('output_filename', None)
+        if (batch_dir is not None and str(batch_dir) not in ('', 'nan')
+                and out_fname is not None and str(out_fname) not in ('', 'nan')):
+            # Tentukan root yang benar berdasarkan source atau nama file
+            source = str(row.get('source', '')).lower()
+            fname  = str(out_fname)
+
+            if source == 'incart' or fname.startswith('incart_'):
+                # INCART binary ada di INCART_FORMAT_DIR
+                p = INCART_FORMAT_DIR / str(batch_dir) / fname
+            else:
+                # PTB-XL binary ada di data_root (HOLTER_FORMAT_DIR)
+                p = data_root / str(batch_dir) / fname
+
+            if p.exists():
+                return p
+
+            # Last resort: coba keduanya
+            for root in [data_root, INCART_FORMAT_DIR, HOLTER_FORMAT_DIR]:
+                p = root / str(batch_dir) / fname
+                if p.exists():
+                    return p
+
+        return None  # tidak bisa di-resolve
+
+    @staticmethod
+    def _resolve_class_label(row) -> int:
+        """
+        Resolve class label dari baris CSV.
+
+        Mendukung dua nama kolom:
+          'class_label'  → PTB-XL format
+          'class_index'  → INCART / merged format
+        """
+        if 'class_label' in row and str(row['class_label']) not in ('', 'nan'):
+            return int(row['class_label'])
+        if 'class_index' in row and str(row['class_index']) not in ('', 'nan'):
+            return int(row['class_index'])
+        return 0  # fallback normal
+
     def _build_window_index(self):
         """
         Bangun list window dari semua rekaman di labels_csv.
         Rekaman dengan kelas minoritas mendapat stride lebih kecil
         (= lebih banyak window) jika oversample_minority=True.
+
+        Mendukung kolom CSV dari PTB-XL (batch_dir + output_filename + class_label)
+        maupun INCART / merged (filepath + class_index).
         """
         self.window_index = []  # list of dict
 
-        # Hitung jumlah rekaman per kelas untuk menentukan oversample factor
-        class_counts = self.labels_df['class_label'].value_counts()
+        # Tentukan kolom class yang tersedia
+        has_class_label = 'class_label' in self.labels_df.columns
+        has_class_index = 'class_index' in self.labels_df.columns
+        if not has_class_label and not has_class_index:
+            raise KeyError(
+                "CSV tidak memiliki kolom 'class_label' maupun 'class_index'.\n"
+                "Jalankan merge_dataset.py untuk memastikan kolom terstandarisasi."
+            )
+
+        # Hitung jumlah rekaman per kelas untuk oversample factor
+        cls_col      = 'class_label' if has_class_label else 'class_index'
+        class_counts = self.labels_df[cls_col].value_counts()
         max_count    = class_counts.max()
 
+        skipped = 0
         for _, row in self.labels_df.iterrows():
-            bin_path = self.data_root / row['batch_dir'] / row['output_filename']
-            if not bin_path.exists():
+            bin_path = self._resolve_bin_path(row, self.data_root)
+            if bin_path is None or not bin_path.exists():
+                skipped += 1
                 continue
 
-            cls        = int(row['class_label'])
+            cls        = self._resolve_class_label(row)
             n_samples  = bin_path.stat().st_size // (NUM_CHANNELS * 2)
 
             if self.oversample_minority and cls != 0:
@@ -124,6 +206,9 @@ class HolterECGDataset(Dataset):
                     'class_label': cls,
                     'is_real':     True,    # bukan synthetic
                 })
+
+        if skipped > 0:
+            print(f"  ⚠ {skipped} baris CSV dilewati (file tidak ditemukan atau path invalid)")
 
     # ── Load SMOTE Synthetic Windows ─────────────────────────────────────────
 
