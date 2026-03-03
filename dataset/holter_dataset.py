@@ -1,5 +1,5 @@
 """
-holter_dataset.py  –  REVISI v4
+holter_dataset.py
 Dataset PyTorch untuk ECG Holter – single-label 11 kelas.
 
 Perubahan dari v3:
@@ -32,11 +32,7 @@ from config_path import (
     SMOTE_CACHE_DIR,
 )
 
-
-# ============================================================================
 # DATASET UTAMA  –  ORIGINAL + OPTIONAL SMOTE SYNTHETIC
-# ============================================================================
-
 class HolterECGDataset(Dataset):
     """
     Dataset ECG Holter, single-label (11 kelas), skala mV.
@@ -85,8 +81,7 @@ class HolterECGDataset(Dataset):
         # Hitung sampling weights untuk WeightedRandomSampler
         self._compute_sample_weights()
 
-    # ── Bangun Indeks Window ─────────────────────────────────────────────────
-
+    # Bangun Indeks Window 
     @staticmethod
     def _resolve_bin_path(row, data_root: Path):
         """
@@ -210,7 +205,7 @@ class HolterECGDataset(Dataset):
         if skipped > 0:
             print(f"  ⚠ {skipped} baris CSV dilewati (file tidak ditemukan atau path invalid)")
 
-    # ── Load SMOTE Synthetic Windows ─────────────────────────────────────────
+    # Load SMOTE Synthetic Windows 
 
     def _load_smote_windows(self, smote_dir: Path):
         """
@@ -241,7 +236,7 @@ class HolterECGDataset(Dataset):
 
         print(f"  ✓ Loaded {len(self.smote_labels):,} synthetic SMOTE windows")
 
-    # ── Sampling Weights ─────────────────────────────────────────────────────
+    # Sampling Weights 
 
     def _compute_sample_weights(self):
         """
@@ -254,7 +249,7 @@ class HolterECGDataset(Dataset):
         inv_freq = 1.0 / counts
         self.sample_weights = inv_freq[labels].tolist()
 
-    # ── Dataset Interface ────────────────────────────────────────────────────
+    # Dataset Interface 
 
     def __len__(self) -> int:
         return len(self.window_index)
@@ -274,8 +269,7 @@ class HolterECGDataset(Dataset):
 
         return torch.from_numpy(ecg), torch.tensor(cls, dtype=torch.long)
 
-    # ── Baca Window dari .bin ────────────────────────────────────────────────
-
+    # Baca Window dari .bin 
     def _read_real_window(self, bin_path: Path,
                           start_sample: int) -> np.ndarray:
         """
@@ -298,8 +292,7 @@ class HolterECGDataset(Dataset):
         # int16 / 1000 = mV  (konsisten dengan ecg_signal_mv di app)
         return ecg.astype(np.float32) * INT16_TO_MV
 
-    # ── Augmentasi ───────────────────────────────────────────────────────────
-
+    # Augmentasi 
     def _augment(self, ecg: np.ndarray) -> np.ndarray:
         """
         Augmentasi pada data mV-scale.
@@ -337,8 +330,7 @@ class HolterECGDataset(Dataset):
 
         return ecg.astype(np.float32)
 
-    # ── Utility ──────────────────────────────────────────────────────────────
-
+    #  Utility 
     def get_sampler(self) -> WeightedRandomSampler:
         """Return WeightedRandomSampler berbasis inverse class frequency (real data only)."""
         # Gunakan label real untuk hitung sampling weight
@@ -396,11 +388,7 @@ class HolterECGDataset(Dataset):
             lines.append(f"  {name:22s}: {cnt:,}")
         return '\n'.join(lines)
 
-
-# ============================================================================
 # DATASET UNTUK INFERENCE  –  streaming tanpa label
-# ============================================================================
-
 class HolterInferenceDataset(Dataset):
     """
     Dataset untuk inference pada rekaman Holter panjang (streaming window).

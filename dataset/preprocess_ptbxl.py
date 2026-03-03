@@ -39,58 +39,40 @@ from config_path import (
 LEADS_ORDER     = ECG_CHANNELS
 ADC_GAIN_PTBXL  = ADC_GAIN   # PTB-XL sudah dalam mV → ×1000 → int16
 
-# ============================================================================
 # PTBXL → CLASS INDEX MAPPING
-# ============================================================================
 # PTB-XL kode SCP → class index (0–10)
 # Jika suatu rekaman memiliki beberapa kode, priority diselesaikan di
 # labels_to_single_class() menggunakan ARRHYTHMIA_PRIORITY.
-# ============================================================================
-
 PTBXL_TO_CLASS: dict[str, int] = {
 
-    # ── 1: Premature Beat ─────────────────────────────────────────────────
+    #  1: Premature Beat 
     'PVC':   1,  'VPVC': 1,  'SVPB': 1,
     'PAC':   1,  'SVARR':1,  'EL':   1,
-
-    # ── 2: Bigeminy ───────────────────────────────────────────────────────
+    #  2: Bigeminy 
     'BIGU':  2,
-
-    # ── 3: Trigeminy ──────────────────────────────────────────────────────
+    #  3: Trigeminy 
     'TRIGU': 3,
-
-    # ── 4: Quadrigeminy ── (tidak ada kode eksplisit di PTB-XL) ──────────
+    #  4: Quadrigeminy  (tidak ada kode eksplisit di PTB-XL) 
     'QUADGU': 4,
-
-    # ── 5: Couplet ─── (tidak ada kode eksplisit di PTB-XL) ─────────────
+    #  5: Couplet  (tidak ada kode eksplisit di PTB-XL) 
     'COUP': 5,
-
-    # ── 6: Triplet ─── (tidak ada kode eksplisit di PTB-XL) ─────────────
+    #  6: Triplet  (tidak ada kode eksplisit di PTB-XL) 
     'TRIP': 6,
-
-    # ── 7: NSVT ───────────────────────────────────────────────────────────
+    #  7: NSVT (tidak ada kode eksplisit di PTB-XL)
     'NSVT':  7,
-
-    # ── 8: Tachycardia ────────────────────────────────────────────────────
+    #  8: Tachycardia 
     'STACH': 8,  'SVTAC': 8,  'SVT':  8,
     'PSVT':  8,  'AVNRT': 8,  'AVRT': 8,  'AT': 8,
-
-    # ── 9: Bradycardia ────────────────────────────────────────────────────
+    #  9: Bradycardia 
     'SBRAD': 9,
-
-    # ── 10: Atrial Fibrillation ───────────────────────────────────────────
+    #  10: Atrial Fibrillation 
     'AFIB': 10,  'AF': 10,
-
-    # ── Kelas yang DIHAPUS dari mapping baru (tidak dipetakan) ───────────
+    #  Kelas yang DIHAPUS dari mapping baru (tidak dipetakan) 
     # SARRH, AFLT, I-AVB, II-AVB, III-AVB
     # → rekaman dgn hanya kode ini → class 0 (normal)
 }
 
-
-# ============================================================================
 # SIGNAL PROCESSING
-# ============================================================================
-
 def bandpass_filter(signal: np.ndarray, fs: int = HOLTER_SAMPLING_RATE,
                     lowcut: float = 0.5, highcut: float = 40,
                     order: int = 4) -> np.ndarray:
@@ -120,11 +102,7 @@ def reorder_leads(signal: np.ndarray, sig_names: list[str]) -> np.ndarray:
             print(f"  Warning: lead {lead} tidak ditemukan → zero-fill")
     return result
 
-
-# ============================================================================
 # LABEL PROCESSING  –  SINGLE LABEL
-# ============================================================================
-
 def parse_scp_codes(label_str: str) -> list[str]:
     """Parse string dict PTB-XL → list kode SCP."""
     try:
@@ -132,11 +110,9 @@ def parse_scp_codes(label_str: str) -> list[str]:
     except Exception:
         return []
 
-
 def codes_to_class_set(scp_codes: list[str]) -> set[int]:
     """Konversi daftar kode SCP → set class index yang relevan."""
     return {PTBXL_TO_CLASS[c] for c in scp_codes if c in PTBXL_TO_CLASS}
-
 
 def resolve_single_label(class_set: set[int]) -> int:
     """
@@ -162,7 +138,6 @@ def resolve_single_label(class_set: set[int]) -> int:
 
     return 0  # fallback
 
-
 def codes_to_bitmask(class_set: set[int]) -> int:
     """Konversi set class index → bitmask (untuk referensi/analisis)."""
     mask = 0
@@ -172,11 +147,7 @@ def codes_to_bitmask(class_set: set[int]) -> int:
         mask = 1  # bit 0 = normal
     return mask
 
-
-# ============================================================================
 # MAIN CONVERSION FUNCTION
-# ============================================================================
-
 def convert_ptbxl_to_holter_format(save_labels: bool = True,
                                     batch_size: int = 1000):
     """
@@ -340,11 +311,7 @@ def convert_ptbxl_to_holter_format(save_labels: bool = True,
 
     return ok_count, label_stats
 
-
-# ============================================================================
 # TRAIN / VAL / TEST SPLIT
-# ============================================================================
-
 def create_train_val_test_splits(train_ratio: float = 0.80,
                                   val_ratio:   float = 0.10,
                                   test_ratio:  float = 0.10,
@@ -405,11 +372,7 @@ def create_train_val_test_splits(train_ratio: float = 0.80,
 
     return {'train': train_df, 'val': val_df, 'test': test_df}
 
-
-# ============================================================================
 # MAIN
-# ============================================================================
-
 if __name__ == "__main__":
     print("=" * 80)
     print("PREPROCESSING PTB-XL → HOLTER  (v3 single-label, mV scale)")

@@ -41,24 +41,6 @@ from config_path import (
     NUM_ARRHYTHMIA_CLASSES, HOLTER_FORMAT_DIR,
 )
 
-# ============================================================================
-# MAPPING: PTB-XL arrhythmia_bitmask  →  nama kelas baru
-# ============================================================================
-# PTB-XL preprocess_ptbxl.py menggunakan ARRHYTHMIA_BIT_MAPPING lama
-# (sebelum v3) yang mungkin berbeda urutan bit-nya.
-# Kita petakan bit lama → nama kelas baru yang ada di ARRHYTHMIA_CLASSES v3.
-#
-# Bit lama (dari preprocess_ptbxl.py versi sebelum v3):
-#   0 = tachycardia, 1 = bradycardia, 2 = sinus_arrhythmia,
-#   3 = pvc_bigeminy, 4 = pvc_trigeminy, 5 = premature_beat,
-#   6 = atrial_fibrillation, 7 = atrial_flutter,
-#   8..11 = av_block / svt
-#
-# Petakan ke nama kelas v3 yang tersedia:
-# (Nama lain yang tidak ada di v3 di-drop → akan fallback ke normal
-#  atau kelas lain yang prioritasnya lebih tinggi)
-# ============================================================================
-
 # bit_posisi_lama → nama kelas v3  (None = tidak dipetakan ke kelas manapun)
 PTBXL_OLD_BIT_TO_CLASS = {
     0:  'tachycardia',
@@ -75,10 +57,7 @@ PTBXL_OLD_BIT_TO_CLASS = {
     11: 'tachycardia',           # SVT → tachycardia
 }
 
-# ============================================================================
 # KONSTANTA SPLIT
-# ============================================================================
-
 TRAIN_RATIO  = 0.75
 VAL_RATIO    = 0.15
 TEST_RATIO   = 0.10
@@ -87,11 +66,7 @@ RANDOM_SEED  = 42
 # Kelas yang HANYA datang dari INCART (baru di v3)
 NEW_CLASSES  = {'quadrigeminy', 'couplet', 'triplet', 'nsvt'}
 
-
-# ============================================================================
 # LOAD PTB-XL LABELS
-# ============================================================================
-
 def _bitmask_to_class_set(bitmask: int) -> set:
     """
     Konversi arrhythmia_bitmask PTB-XL (format lama) → set nama kelas v3.
@@ -153,11 +128,7 @@ def load_ptbxl() -> pd.DataFrame:
     _print_class_dist(df, "PTB-XL (setelah resolve)")
     return df
 
-
-# ============================================================================
 # LOAD INCART LABELS
-# ============================================================================
-
 def load_incart() -> pd.DataFrame:
     """Load INCART labels (sudah class_index, tidak perlu resolve)."""
     if not INCART_LABELS_CSV.exists():
@@ -206,10 +177,7 @@ def load_incart() -> pd.DataFrame:
     return df
 
 
-# ============================================================================
 # MERGE
-# ============================================================================
-
 def merge(ptbxl: pd.DataFrame, incart: pd.DataFrame) -> pd.DataFrame:
     """Gabungkan kedua DataFrame, align kolom, return merged DataFrame."""
     all_cols = sorted(set(ptbxl.columns) | set(incart.columns))
@@ -231,7 +199,7 @@ def merge(ptbxl: pd.DataFrame, incart: pd.DataFrame) -> pd.DataFrame:
     merged['has_arrhythmia'] = (merged['class_index'] > 0).astype(int)
     merged['class_name']     = merged['class_index'].map(ARRHYTHMIA_CLASSES)
 
-    # ── Verifikasi tidak ada NaN di kolom path kritis ─────────────────────────
+    # Verifikasi tidak ada NaN di kolom path kritis 
     # PTB-XL rows: batch_dir + output_filename valid, filepath mungkin NaN → OK
     # INCART rows: filepath valid, batch_dir + output_filename di-derive → OK
     n_no_path = merged[
@@ -243,11 +211,7 @@ def merge(ptbxl: pd.DataFrame, incart: pd.DataFrame) -> pd.DataFrame:
 
     return merged
 
-
-# ============================================================================
 # HELPER
-# ============================================================================
-
 def _print_class_dist(df: pd.DataFrame, title: str):
     n = len(df)
     print(f"\n  [{title}]  total={n:,}")
@@ -271,10 +235,7 @@ def _strat_key(class_index: int) -> int:
     name = ARRHYTHMIA_CLASSES.get(class_index, '')
     return 2 if name in NEW_CLASSES else 1
 
-
-# ============================================================================
 # SPLIT
-# ============================================================================
 
 def create_splits(merged: pd.DataFrame) -> dict:
     """Buat train/val/test split dengan stratifikasi 3 strata."""
@@ -323,11 +284,7 @@ def create_splits(merged: pd.DataFrame) -> dict:
 
     return {'train': train, 'val': val, 'test': test}
 
-
-# ============================================================================
 # SAVE
-# ============================================================================
-
 def save(merged: pd.DataFrame, splits: dict) -> dict:
     """Simpan semua output ke disk."""
     HOLTER_FORMAT_DIR.mkdir(parents=True, exist_ok=True)
@@ -371,11 +328,7 @@ def save(merged: pd.DataFrame, splits: dict) -> dict:
 
     return stats
 
-
-# ============================================================================
 # MAIN
-# ============================================================================
-
 def main():
     print("=" * 80)
     print("MERGE DATASET: PTB-XL + ST. PETERSBURG INCART  (v3.1 single-label)")
@@ -403,7 +356,6 @@ def main():
     for name in ('quadrigeminy', 'couplet', 'triplet', 'nsvt'):
         print(f"    {name:20s}: {stats['per_class'][name]['count']:,}")
     print(f"\n  Jalankan training seperti biasa – split CSV sudah diperbarui.")
-
 
 if __name__ == "__main__":
     main()

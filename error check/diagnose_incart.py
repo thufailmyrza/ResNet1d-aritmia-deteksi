@@ -1,9 +1,6 @@
 """
 diagnose_incart.py
 ==================
-Jalankan SEBELUM preprocess_incart.py untuk mendiagnosis
-mengapa semua rekaman gagal diproses.
-
 Mengecek:
   1. Apakah INCART_ROOT ada dan berisi file yang benar
   2. wfdb.rdsamp berhasil baca satu rekaman
@@ -25,7 +22,7 @@ print("=" * 70)
 print("DIAGNOSA INCART DATABASE")
 print("=" * 70)
 
-# ── 1. Cek root ───────────────────────────────────────────────────────────────
+# 1. Cek root 
 print(f"\n[1] INCART_ROOT  : {INCART_ROOT}")
 if not INCART_ROOT.exists():
     print("    ✗ DIREKTORI TIDAK ADA!")
@@ -42,7 +39,7 @@ if not all_files:
 for f in all_files[:5]:
     print(f"    ·  {f.relative_to(INCART_ROOT)}")
 
-# ── 2. Temukan rekaman pertama ────────────────────────────────────────────────
+# 2. Temukan rekaman pertama
 first_hea = all_files[0]
 rec_dir   = first_hea.parent
 rec_name  = first_hea.stem           # e.g. "I01"
@@ -52,7 +49,7 @@ print(f"\n[2] Uji rekaman : {rec_name}")
 print(f"    rec_dir     : {rec_dir}")
 print(f"    rec_path    : {rec_path}")
 
-# ── 3. wfdb.rdsamp ────────────────────────────────────────────────────────────
+# 3. wfdb.rdsamp 
 print("\n[3] wfdb.rdsamp ...")
 try:
     import wfdb
@@ -67,7 +64,7 @@ except Exception as e:
     traceback.print_exc()
     sys.exit(1)
 
-# ── 4. wfdb.rdann ─────────────────────────────────────────────────────────────
+# 4. wfdb.rdann 
 print("\n[4] wfdb.rdann ...")
 try:
     # Cek apakah file .atr ada
@@ -92,7 +89,7 @@ except Exception as e:
     traceback.print_exc()
     sys.exit(1)
 
-# ── 5. Uji sliding window (5 window pertama) ──────────────────────────────────
+# 5. Uji sliding window (5 window pertama) 
 print("\n[5] Uji 5 window pertama ...")
 try:
     import numpy as np

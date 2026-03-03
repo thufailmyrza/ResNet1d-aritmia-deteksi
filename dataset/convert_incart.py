@@ -1,39 +1,9 @@
 """
-preprocess_incart.py  –  v5  (ground-truth driven)
-====================================================
+preprocess_incart.py 
 Konversi St. Petersburg INCART 12-Lead Arrhythmia Database
 ke format training identik dengan output preprocess_ptbxl.py.
 
-Perubahan UTAMA v5:
-  Label kelas ditentukan dari record-descriptions.txt (ground truth),
-  BUKAN dari deteksi algoritmik beat-level.
-
-  Arsitektur labeling dua tingkat:
-    ┌──────────────────────────────────────────────────────────────┐
-    │  Level 1 – RECORD LEVEL  (dari record-descriptions.txt)     │
-    │  "ventricular couplets" → primary_class = couplet (5)       │
-    │  Menentukan JENIS aritmia yang bisa muncul di rekaman ini    │
-    ├──────────────────────────────────────────────────────────────┤
-    │  Level 2 – WINDOW LEVEL  (dari beat annotations .atr)       │
-    │  Apakah window ini punya aktivitas aritmia?                  │
-    │  YES → gunakan primary_class rekaman                         │
-    │  NO  → normal (class 0)                                      │
-    └──────────────────────────────────────────────────────────────┘
-
-  Window dianggap "aktif" (ada aritmia) jika:
-    • Kelas = VEB-pattern (premature/bigeminy/trigeminy/quadrigeminy/
-                           couplet/triplet/nsvt):
-        ada ≥1 ectopic beat (VEB atau SVEB) dalam window
-    • Kelas = tachycardia:
-        HR (dari semua beat) > 100 bpm
-    • Kelas = bradycardia:
-        HR (dari semua beat) < 60 bpm, ≥2 beat dalam window
-    • Kelas = atrial_fibrillation:
-        rr_cv > 0.20 dan veb_frac < 0.20
-    • Kelas = normal (I60):
-        selalu normal
-
-Kontrak output (cocok dengan kontrak model v3):
+Kontrak output :
   • Binary file  : (2500, 12) int16, row-major  [sample × channel]
   • Labels CSV   : kolom utama = 'class_index' (0–10)
   • Normalisasi  : int16 / ADC_GAIN_INT16 = mV
@@ -54,7 +24,6 @@ from scipy.signal import butter, filtfilt, resample
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
-
 from config_path import (
     INCART_ROOT, INCART_FORMAT_DIR, INCART_LABELS_CSV, INCART_STATS_JSON,
     HOLTER_SAMPLING_RATE, NUM_CHANNELS, ECG_CHANNELS,
@@ -63,10 +32,7 @@ from config_path import (
     NUM_ARRHYTHMIA_CLASSES,
 )
 
-# ============================================================================
 # KONSTANTA
-# ============================================================================
-
 INCART_FS      = 257
 TARGET_FS      = HOLTER_SAMPLING_RATE   # 500
 WINDOW_SAMPLES = WINDOW_SIZE            # 2500
@@ -81,14 +47,9 @@ _BEAT_SYMBOLS = set('NVSAaJjEeFf')
 _HR_TACHY     = 100    # bpm
 _HR_BRADY     = 60     # bpm
 _AF_CV_THR    = 0.20   # RR coefficient of variation untuk AF
-_AF_VEB_MAX   = 0.20   # max VEB fraction untuk AF (lebih longgar dari v4)
+_AF_VEB_MAX   = 0.20   # max VEB fraction untuk AF
 
-
-# ============================================================================
 # LEVEL 1: PARSE RECORD-DESCRIPTIONS.TXT  →  PER-RECORD PRIMARY CLASS
-# ============================================================================
-
-# Keyword matching order: lebih spesifik dulu
 _KEYWORD_MAP = [
     (r'paroxysmal\s+vt',               'nsvt'),
     (r'paroxysmal\s+ventricular',       'nsvt'),
@@ -109,7 +70,6 @@ _KEYWORD_MAP = [
     (r'escape\s+beat',                  'premature_beat'),
     (r'fusion\s+beat',                  'premature_beat'),
 ]
-
 
 def parse_record_descriptions(path: Path) -> dict:
     """
@@ -277,11 +237,7 @@ def _resample_signal(signal: np.ndarray, orig_fs: float, tgt_fs: float) -> np.nd
 def _rescale_ann(samples, orig_fs: float, tgt_fs: float) -> np.ndarray:
     return np.round(np.asarray(samples, dtype=np.float64) * tgt_fs / orig_fs).astype(np.int64)
 
-
-# ============================================================================
 # PROSES SATU REKAMAN
-# ============================================================================
-
 def _process_record(rec_name: str,
                     rec_dir: Path,
                     primary_class: int,
@@ -299,7 +255,7 @@ def _process_record(rec_name: str,
     rec_path = rec_dir / rec_name
 
     try:
-        # ── Signal (sudah mV dari rdsamp) ────────────────────────────────────
+        # Signal (sudah mV dari rdsamp)
         signal, info = wfdb.rdsamp(str(rec_path))
         orig_fs   = float(info['fs'])
         sig_names = [str(n) for n in info['sig_name']]
@@ -308,7 +264,7 @@ def _process_record(rec_name: str,
         signal = _resample_signal(signal, orig_fs, TARGET_FS)
         signal = _bandpass(signal, TARGET_FS)
 
-        # ── Beat annotations ─────────────────────────────────────────────────
+        # Beat annotations 
         ann       = wfdb.rdann(str(rec_path), 'atr')
         beat_mask = np.array([str(s) in _BEAT_SYMBOLS for s in ann.symbol])
         beat_smp  = _rescale_ann(ann.sample[beat_mask], orig_fs, TARGET_FS)
@@ -343,7 +299,7 @@ def _process_record(rec_name: str,
             out_path   = folder / f"incart_{file_idx:06d}.bin"
             win_int16.tofile(out_path)
 
-            # ── Level 2: apakah window ini aktif? ────────────────────────────
+            # Level 2: apakah window ini aktif? 
             active      = _window_is_active(primary_class, beat_smp, beat_sym,
                                              win_start, win_end)
             class_index = primary_class if active else CLASS_TO_IDX['normal']
@@ -377,11 +333,7 @@ def _process_record(rec_name: str,
     except Exception as exc:
         return labels, f"{type(exc).__name__}: {exc}\n{traceback.format_exc()}"
 
-
-# ============================================================================
 # PATH UTILITIES
-# ============================================================================
-
 def _find_record_dir(rec_name: str, root: Path):
     if (root / f"{rec_name}.hea").exists():
         return root
@@ -394,11 +346,7 @@ def _find_record_dir(rec_name: str, root: Path):
                     return ssf
     return None
 
-
-# ============================================================================
 # MAIN CONVERSION
-# ============================================================================
-
 def convert_incart_to_holter_format(dry_run: bool = False,
                                      verbose: bool = False) -> pd.DataFrame:
     INCART_FORMAT_DIR.mkdir(parents=True, exist_ok=True)
@@ -420,7 +368,7 @@ def convert_incart_to_holter_format(dry_run: bool = False,
             "  Download: https://physionet.org/content/incartdb/1.0.0/"
         )
 
-    # ── Level 1: Parse record descriptions ───────────────────────────────────
+    # Level 1: Parse record descriptions 
     desc_file = INCART_ROOT / "record-descriptions.txt"
     if not desc_file.exists():
         print(f"  ⚠ record-descriptions.txt tidak ada di {INCART_ROOT}")
@@ -447,7 +395,7 @@ def convert_incart_to_holter_format(dry_run: bool = False,
             f"Letakkan di: {INCART_ROOT}/"
         )
 
-    # ── Daftar rekaman ────────────────────────────────────────────────────────
+    # Daftar rekaman
     rec_file = INCART_ROOT / "RECORDS"
     if rec_file.exists():
         record_names = [r.strip() for r in rec_file.read_text().splitlines() if r.strip()]
@@ -487,7 +435,7 @@ def convert_incart_to_holter_format(dry_run: bool = False,
         all_labels.extend(entries)
         total_windows += sum(1 for e in entries if e.get('success', False))
 
-    # ── Error report ──────────────────────────────────────────────────────────
+    # Error report
     if errors:
         print(f"\n⚠  {len(errors)} rekaman gagal:")
         for rec, msg in list(errors.items())[:10]:
@@ -504,7 +452,7 @@ def convert_incart_to_holter_format(dry_run: bool = False,
     n    = len(succ)
     df.to_csv(INCART_LABELS_CSV, index=False)
 
-    # ── Statistik final ───────────────────────────────────────────────────────
+    # Statistik final
     print("\n" + "=" * 80)
     print("HASIL KONVERSI INCART  (v5 ground-truth)")
     print("=" * 80)
@@ -542,11 +490,7 @@ def convert_incart_to_holter_format(dry_run: bool = False,
     print(f"✓ Stats JSON  : {INCART_STATS_JSON}")
     return df
 
-
-# ============================================================================
 # CLI
-# ============================================================================
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Konversi INCART ke Holter format v5 (ground-truth driven)"

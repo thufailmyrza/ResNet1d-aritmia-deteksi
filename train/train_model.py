@@ -44,7 +44,7 @@ from config_path import (
     SMOTE_CACHE_DIR, NUM_ARRHYTHMIA_CLASSES, ARRHYTHMIA_LABELS,
 )
 from holter_dataset import HolterECGDataset
-from resnet1d import ResNet1D, build_model
+from model.resnet1d import ResNet1D, build_model
 
 
 

@@ -46,7 +46,7 @@ from config_path import (
     ADC_GAIN_DEVICE, ADC_GAIN_INT16, INT16_TO_MV,
     WINDOW_SIZE,
 )
-from resnet1d import build_model, ResNet1D
+from model.resnet1d import build_model, ResNet1D
 
 # Faktor konversi raw ADC Holter → mV
 # App menerima mV, jadi sebelum feed ke model:
