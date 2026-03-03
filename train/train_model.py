@@ -238,14 +238,10 @@ def evaluate_test(model, loader, criterion, device):
 
     return m
 
-
-# ============================================================================
 # MAIN TRAINING FUNCTION
-# ============================================================================
-
 def train(args: argparse.Namespace):
 
-    # ── Device ───────────────────────────────────────────────────────────────
+    #  Device 
     if torch.cuda.is_available():
         device = torch.device("cuda:0")
         torch.backends.cudnn.benchmark = True
@@ -265,7 +261,7 @@ def train(args: argparse.Namespace):
     print(f"  LR          : {args.lr}")
     print(f"  SMOTE       : {args.use_smote}")
 
-    # ── Dataset ───────────────────────────────────────────────────────────────
+    # Dataset 
     smote_dir = SMOTE_CACHE_DIR if args.use_smote else None
 
     train_ds = HolterECGDataset(
@@ -288,7 +284,7 @@ def train(args: argparse.Namespace):
     for name, cnt in train_ds.class_distribution().items():
         print(f"    {name:22s}: {cnt:,}")
 
-    # Windows: num_workers wajib 0
+    # Windows
     nw = args.num_workers
 
     def make_loader(ds, shuffle=False, sampler=None, drop_last=False):
@@ -301,7 +297,7 @@ def train(args: argparse.Namespace):
     val_loader   = make_loader(val_ds)
     test_loader  = make_loader(test_ds)
 
-    # ── Model ─────────────────────────────────────────────────────────────────
+    # Model 
     model = build_model(
         args.model_type,
         dropout=args.dropout,
@@ -312,15 +308,11 @@ def train(args: argparse.Namespace):
     n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print(f"\n  Params: {n_params:,}")
 
-    # ── Loss ──────────────────────────────────────────────────────────────────
-    # TIDAK pakai class weights di sini – WeightedRandomSampler sudah menangani
-    # keseimbangan kelas. Menggabungkan keduanya menyebabkan sinyal gradient
-    # saling membatalkan dan loss tidak konvergen.
+    # ── Loss 
     criterion = nn.CrossEntropyLoss(
         label_smoothing = args.label_smoothing,
     )
-
-    # ── Sanity Check: Verifikasi loss awal ────────────────────────────────────
+    # Sanity Check: Verifikasi loss awal 
     # Dengan random init & 11 kelas, loss seharusnya ≈ ln(11) = 2.398
     # Jika jauh berbeda, ada masalah data/label/model.
     model.eval()
@@ -342,11 +334,11 @@ def train(args: argparse.Namespace):
             print(f"  ✓ Loss normal, training siap.")
     model.train()
 
-    # ── Optimizer ─────────────────────────────────────────────────────────────
+    # Optimizer 
     optimizer = optim.AdamW(model.parameters(),
                             lr=args.lr, weight_decay=args.weight_decay)
 
-    # ── Scheduler ─────────────────────────────────────────────────────────────
+    # Scheduler 
     if args.scheduler == 'cosine':
         scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(
             optimizer, T_0=args.t_max, T_mult=2, eta_min=1e-6)
@@ -357,7 +349,7 @@ def train(args: argparse.Namespace):
         scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.5)
 
 
-    # ── Resume ────────────────────────────────────────────────────────────────
+    # Resume 
     start_epoch   = 1
     best_f1       = 0.0
     best_epoch    = 0
@@ -391,7 +383,7 @@ def train(args: argparse.Namespace):
             }, f, indent=2)
         print(f"  ✓ Log baru dibuat: {log_path}")
 
-    # ── Training Loop ──────────────────────────────────────────────────────────
+    # Training Loop 
     print("\n" + "=" * 65)
     print(f"TRAINING  (epoch {start_epoch} → {args.epochs})")
     print("=" * 65)
@@ -448,7 +440,7 @@ def train(args: argparse.Namespace):
 
         print(f"  ✓ Best epoch={best_epoch}  MacroF1={best_f1:.4f}")
 
-    # ── Final Summary ──────────────────────────────────────────────────────────
+    # Final Summary
     print("\n" + "=" * 65)
     print(f"SELESAI  –  Best epoch={best_epoch}  MacroF1={best_f1:.4f}")
     print("=" * 65)
@@ -462,7 +454,7 @@ def train(args: argparse.Namespace):
                  'end_time': datetime.now().isoformat()})
     with open(log_path, 'w') as f: json.dump(data, f, indent=2)
 
-    # ── Test Evaluation ────────────────────────────────────────────────────────
+    # Test Evaluation 
     if CNN_BEST_MODEL.exists():
         ckpt = torch.load(CNN_BEST_MODEL, map_location=device, weights_only=False)
         model.load_state_dict(ckpt['model_state_dict'])
