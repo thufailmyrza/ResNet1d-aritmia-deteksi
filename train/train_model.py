@@ -35,8 +35,9 @@ from sklearn.metrics import f1_score, accuracy_score, classification_report, con
 from tqdm import tqdm
 
 #  Path setup 
-PROJECT_ROOT = Path("C:/Users/Myrza/Desktop/project/Project Arrythmia")
-sys.path.insert(0, str(PROJECT_ROOT))
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 from config_path import (
     HOLTER_FORMAT_DIR, NUM_CHANNELS, TRAIN_SPLIT_CSV, VAL_SPLIT_CSV, TEST_SPLIT_CSV,
@@ -492,6 +493,8 @@ def parse_args():
 # ============================================================================
 
 if __name__ == '__main__':
+    from multiprocessing import freeze_support
+    freeze_support()  # Untuk kompatibilitas Windows saat menggunakan num_workers > 0
     args = parse_args()
 
     # Seed
