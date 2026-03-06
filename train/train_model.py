@@ -34,7 +34,7 @@ from torch.utils.data import DataLoader
 from sklearn.metrics import f1_score, accuracy_score, classification_report, confusion_matrix
 from tqdm import tqdm
 
-# ── Path setup ────────────────────────────────────────────────────────────────
+#  Path setup 
 PROJECT_ROOT = Path("C:/Users/Myrza/Desktop/project/Project Arrythmia")
 sys.path.insert(0, str(PROJECT_ROOT))
 
@@ -43,16 +43,10 @@ from config_path import (
     CNN_CHECKPOINT_DIR, CNN_BEST_MODEL, CNN_LAST_MODEL,
     SMOTE_CACHE_DIR, NUM_ARRHYTHMIA_CLASSES, ARRHYTHMIA_LABELS,
 )
-from holter_dataset import HolterECGDataset
+from dataset.holter_dataset import HolterECGDataset
 from model.resnet1d import ResNet1D, build_model
 
-
-
-
-# ============================================================================
 # METRICS
-# ============================================================================
-
 class Tracker:
     """Akumulasi loss + prediksi selama satu epoch."""
 
@@ -82,7 +76,6 @@ class Tracker:
             '_labels':      l,
         }
 
-
 def print_metrics(phase: str, m: dict, epoch: int, elapsed: float):
     print(f"\n  ── {phase.upper()} │ Epoch {epoch} │ {elapsed:.0f}s ──")
     print(f"  Loss={m['loss']:.4f}  Acc={m['accuracy']*100:.1f}%  "
@@ -91,11 +84,7 @@ def print_metrics(phase: str, m: dict, epoch: int, elapsed: float):
         bar = '█' * int(f1 * 15)
         print(f"    {i:2d} [{name:22s}] {f1:.3f} {bar}")
 
-
-# ============================================================================
 # TRAIN / VALIDATE
-# ============================================================================
-
 def run_epoch(model, loader, criterion, device,
               optimizer=None, grad_clip: float = 1.0,
               epoch: int = 0, total_epochs: int = 0,
@@ -144,11 +133,7 @@ def run_epoch(model, loader, criterion, device,
 
     return tracker.compute()
 
-
-# ============================================================================
 # CHECKPOINT
-# ============================================================================
-
 def save_ckpt(model, optimizer, scheduler,
               epoch: int, best_f1: float, path: Path, tag: str = ""):
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -162,7 +147,6 @@ def save_ckpt(model, optimizer, scheduler,
     if tag:
         print(f"  ✓ Saved {tag}: {path.name}")
 
-
 def load_ckpt(path: Path, model, optimizer, scheduler) -> dict:
     ckpt = torch.load(path, map_location='cpu', weights_only=False)
     model.load_state_dict(ckpt['model_state_dict'])
@@ -172,11 +156,7 @@ def load_ckpt(path: Path, model, optimizer, scheduler) -> dict:
     print(f"  ✓ Resumed epoch {ckpt['epoch']}  best F1={ckpt['best_macro_f1']:.4f}")
     return ckpt
 
-
-# ============================================================================
 # TRAINING LOG
-# ============================================================================
-
 def log_epoch(log_path: Path, epoch: int, train_m: dict, val_m: dict,
               lr: float, elapsed: float):
     """Append satu epoch ke training_log.json."""
@@ -198,11 +178,7 @@ def log_epoch(log_path: Path, epoch: int, train_m: dict, val_m: dict,
     with open(log_path, 'w') as f:
         json.dump(data, f, indent=2)
 
-
-# ============================================================================
 # TEST SET EVALUATION
-# ============================================================================
-
 def evaluate_test(model, loader, criterion, device):
     print("\n" + "=" * 65)
     print("EVALUASI TEST SET")
