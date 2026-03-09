@@ -16,18 +16,17 @@ Setiap ResBlock mengandung SE (Squeeze-Excitation) attention per-channel.
 Output: logits (B, 11) – gunakan argmax untuk prediksi kelas.
 """
 
+import sys
+from pathlib import Path
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from typing import Optional
-
-from config_path import NUM_ARRHYTHMIA_CLASSES
-
-
-# ============================================================================
+#  Path setup 
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+    
 # BUILDING BLOCKS
-# ============================================================================
-
 class SEBlock(nn.Module):
     """
     Squeeze-Excitation Block (channel attention).
@@ -140,11 +139,7 @@ class BottleneckBlock1D(nn.Module):
         out = self.se(out)
         return F.relu(out + identity, inplace=True)
 
-
-# ============================================================================
 # MULTI-SCALE TEMPORAL ATTENTION
-# ============================================================================
-
 class MultiScaleAttention(nn.Module):
     """
     Multi-scale temporal attention: rata-rata + max pooling di berbagai
@@ -166,11 +161,7 @@ class MultiScaleAttention(nn.Module):
         attn = self.conv(combined)               # (B, 1, L)
         return x * attn
 
-
-# ============================================================================
 # RESNET-1D MODEL
-# ============================================================================
-
 class ResNet1D(nn.Module):
     """
     ResNet-1D untuk klasifikasi aritmia ECG 12-lead, single-label.
@@ -324,11 +315,7 @@ class ResNet1D(nn.Module):
     def count_parameters(self) -> int:
         return sum(p.numel() for p in self.parameters() if p.requires_grad)
 
-
-# ============================================================================
 # IMPROVED (DEEPER) VARIANT
-# ============================================================================
-
 class ImprovedResNet(ResNet1D):
     """
     Varian ResNet-1D yang lebih dalam: [3, 4, 6, 3] blocks.
@@ -351,41 +338,49 @@ class ImprovedResNet(ResNet1D):
 # ============================================================================
 # FACTORY FUNCTION
 # ============================================================================
-
 def build_model(model_type: str = 'standard',
                 num_classes: int = 11,
                 num_channels: int = 12,
-                dropout: float = 0.3) -> ResNet1D:
+                dropout: float = 0.3):
     """
     Factory function untuk membuat model berdasarkan tipe.
 
     Args:
-        model_type   : 'standard' (ResNet-18 style) atau 'improved' (ResNet-50 style)
+        model_type   : 'standard'  → ResNet-18 style (SE-ResBlock [2,2,2,2])
+                       'improved'  → ResNet-50 style (SE-ResBlock [3,4,6,3])
+                       'resnet152' → Bottleneck ResNet dari notebook (file ini)
         num_classes  : Jumlah kelas output (default 11)
         num_channels : Jumlah lead ECG (default 12)
         dropout      : Dropout rate
 
     Returns:
-        ResNet1D model (belum dilatih)
+        Model instance (belum dilatih, belum .to(device))
     """
     if model_type == 'improved':
         model = ImprovedResNet(num_classes=num_classes,
                                num_channels=num_channels,
                                dropout=dropout)
-    else:
+        n_params = model.count_parameters()
+        print(f"  Model: {model_type}  |  Params: {n_params:,}")
+
+    elif model_type == 'resnet152':
+        from model.resnet152 import build_resnet152
+        model = build_resnet152(
+            num_classes=num_classes,
+            num_channels=num_channels,
+            dropout=dropout,
+        )
+
+    else:  # 'standard'
         model = ResNet1D(num_classes=num_classes,
                          num_channels=num_channels,
                          dropout=dropout)
+        n_params = model.count_parameters()
+        print(f"  Model: {model_type}  |  Params: {n_params:,}")
 
-    n_params = model.count_parameters()
-    print(f"  Model: {model_type}  |  Params: {n_params:,}")
     return model
 
-
-# ============================================================================
 # SELF-TEST
-# ============================================================================
-
 if __name__ == "__main__":
     print("=" * 60)
     print("SELF-TEST: ResNet1D")
@@ -394,7 +389,7 @@ if __name__ == "__main__":
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"Device: {device}")
 
-    for mtype in ['standard', 'improved']:
+    for mtype in ['standard', 'improved', 'resnet152']:
         print(f"\n── {mtype} ──")
         model = build_model(mtype).to(device)
 

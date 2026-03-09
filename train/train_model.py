@@ -45,7 +45,7 @@ from config_path import (
     SMOTE_CACHE_DIR, NUM_ARRHYTHMIA_CLASSES, ARRHYTHMIA_LABELS,
 )
 from dataset.holter_dataset import HolterECGDataset
-from model.resnet1d import ResNet1D, build_model
+from model.resnet1d import build_model
 
 # METRICS
 class Tracker:
@@ -459,7 +459,7 @@ def parse_args():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     # Model
-    p.add_argument('--model-type',  default='standard', choices=['standard', 'improved'])
+    p.add_argument('--model-type',  default='standard', choices=['standard', 'improved', 'resnet152'])
     p.add_argument('--dropout',     type=float, default=0.3)
     # Data
     p.add_argument('--stride-train',type=int,   default=500,

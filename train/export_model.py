@@ -38,7 +38,6 @@ import sys
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
-
 from config_path import (
     CNN_BEST_MODEL, EXPORTED_MODELS_DIR, ONNX_MODEL_PATH, PKL_MODEL_PATH,
     ARRHYTHMIA_CLASSES, ARRHYTHMIA_LABELS, NUM_ARRHYTHMIA_CLASSES,
@@ -427,7 +426,7 @@ def _onnx_infer_recording(sess, inp_name: str,
                             ecg_mv: np.ndarray,
                             batch_size: int) -> np.ndarray:
     """Helper: inference rekaman lengkap via ONNX session."""
-    import onnxruntime as ort  # noqa (sudah tersedia jika sampai sini)
+    import onnxruntime as ort 
 
     n_samples = ecg_mv.shape[0]
     remainder = n_samples % WINDOW_SIZE
@@ -554,8 +553,8 @@ if __name__ == "__main__":
 
     # export
     pe = sub.add_parser('export', help='Export ONNX + PKL')
-    pe.add_argument('--checkpoint',  default=None)
-    pe.add_argument('--output-dir',  default=None)
+    pe.add_argument('--checkpoint',  default=CNN_BEST_MODEL)
+    pe.add_argument('--output-dir',  default=EXPORTED_MODELS_DIR)
     pe.add_argument('--model-type',  choices=['standard','improved'],
                     default='standard')
 

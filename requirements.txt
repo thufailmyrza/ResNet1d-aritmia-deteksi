@@ -1,0 +1,15 @@
+numpy
+pandas
+scipy
+torch
+torchvision
+wfdb
+scikit-learn
+tqdm
+matplotlib
+seaborn
+onnx
+jupyter
+ipython
+onnxruntime-gpu
+onnx-simplifier
