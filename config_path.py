@@ -21,7 +21,7 @@ from pathlib import Path
 import numpy as np
 
 # BASE PATHS
-PROJECT_ROOT = Path("C:/Users/Myrza/Desktop/project/Project Arrythmia")
+PROJECT_ROOT = Path("/home/tmyrza/workspace/ProjectArrythmia")
 
 #  Input (Raw Data) 
 PTBXL_ROOT           = PROJECT_ROOT / "RAW DATA" / "ptb-xl"
