@@ -21,18 +21,13 @@ from pathlib import Path
 import numpy as np
 
 # BASE PATHS
-PROJECT_ROOT = Path("/home/tmyrza/workspace/ProjectArrythmia")
+PROJECT_ROOT = Path("C:/Users/Myrza/Desktop/project/Project Arrythmia")
 
 #  Input (Raw Data) 
 PTBXL_ROOT           = PROJECT_ROOT / "RAW DATA" / "ptb-xl"
 PTBXL_DATABASE       = PTBXL_ROOT / "ptbxl_database.csv"
 PTBXL_SCP_STATEMENTS = PTBXL_ROOT / "scp_statements.csv"
 PTBXL_RECORDS        = PTBXL_ROOT / "records500"          # rekaman 500 Hz
-
-#  INCART Input  
-# Download : https://physionet.org/content/incartdb/1.0.0/
-# Letakkan : RAW DATA/incart/
-# Isi      : I01.hea  I01.dat  I01.atr  ...  I75.hea  I75.dat  I75.atr
 INCART_ROOT          = PROJECT_ROOT / "RAW DATA" / "incart"
 
 #  Output root 

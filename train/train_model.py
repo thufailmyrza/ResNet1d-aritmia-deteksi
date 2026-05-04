@@ -2,13 +2,6 @@
 train_model.py  –  v5 (fix accuracy=0 & loss meledak)
 Training pipeline ECG Holter Arrhythmia Detection – 11 kelas single-label.
 
-Perubahan dari v4:
-  FIX 1: Hapus class_weights dari CrossEntropyLoss.
-          WeightedRandomSampler + class_weights bersamaan menyebabkan
-          sinyal gradient saling batalkan → accuracy stuck di 0.
-  FIX 2: Sanity check loss awal (seharusnya ≈ ln(11) = 2.398).
-  FIX 3: Training log di-reset saat mulai dari awal (bukan resume).
-  FIX 4: label_smoothing default 0.1 → 0.05.
 
 Cara pakai:
   python train_model.py                              # default
