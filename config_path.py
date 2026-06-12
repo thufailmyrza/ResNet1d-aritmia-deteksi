@@ -3,33 +3,32 @@ import numpy as np
 # BASE PATHS
 PROJECT_ROOT = Path(#project root path here, e.g., "/path/to/your/project")
 #  Input (Raw Data) 
-PTBXL_ROOT           = PROJECT_ROOT / "RAW DATA" / "ptb-xl"
+PTBXL_ROOT           = PROJECT_ROOT / #ptbxl root path here, e.g., "RAW DATA/ptbxl"
 PTBXL_DATABASE       = PTBXL_ROOT / "ptbxl_database.csv"
 PTBXL_SCP_STATEMENTS = PTBXL_ROOT / "scp_statements.csv"
 PTBXL_RECORDS        = PTBXL_ROOT / "records500"         
-INCART_ROOT          = PROJECT_ROOT / "RAW DATA" / "incart"
+INCART_ROOT          = PROJECT_ROOT / #incart root path here, e.g., "RAW DATA/INCART"
 #  Output root 
-OUTPUT_ROOT          = PROJECT_ROOT / "OUTPUT"
-#  Holter format – PTB-XL binary windows 
-HOLTER_FORMAT_DIR    = OUTPUT_ROOT / "HOLTER_V5"
-SMOTE_CACHE_DIR      = HOLTER_FORMAT_DIR / "smote_cache"
+OUTPUT_ROOT          = PROJECT_ROOT / #output folder name here, e.g., "OUTPUT"
+#  Holter format 
+HOLTER_FORMAT_DIR    = OUTPUT_ROOT / #holter_format folder name here, e.g., "HOLTER_FORMAT"
+SMOTE_CACHE_DIR      = HOLTER_FORMAT_DIR / #smote_cache folder name here, e.g., "smote_cache"
 #  INCART format  
-INCART_FORMAT_DIR    = OUTPUT_ROOT / "INCART_FORMAT"
+INCART_FORMAT_DIR    = OUTPUT_ROOT / #incart_format folder name here, e.g., "INCART_FORMAT"
 INCART_LABELS_CSV    = INCART_FORMAT_DIR / "incart_labels.csv"
 INCART_STATS_JSON    = INCART_FORMAT_DIR / "incart_statistics.json"
 # Merged dataset  
 MERGED_LABELS_CSV    = HOLTER_FORMAT_DIR / "merged_labels.csv"
 MERGED_STATS_JSON    = HOLTER_FORMAT_DIR / "merged_statistics.json"
 #  Checkpoints 
-CHECKPOINTS_DIR      = OUTPUT_ROOT / "checkpoints"
-CNN_CHECKPOINT_DIR   = CHECKPOINTS_DIR / "cnn"
-CNN_BEST_MODEL       = CNN_CHECKPOINT_DIR / "best_model.pth"
-CNN_LAST_MODEL       = CNN_CHECKPOINT_DIR / "last_model.pth"
-CNN_TRAINING_LOG     = CNN_CHECKPOINT_DIR / "training_log.json"
+CHECKPOINTS_DIR      = OUTPUT_ROOT / #checkpoints folder name here, e.g., "checkpoints"
+BEST_MODEL           = CHECKPOINTS_DIR / "best_model.pth"
+LAST_MODEL           = CHECKPOINTS_DIR / "last_model.pth"
+TRAINING_LOG         = CHECKPOINTS_DIR / "training_log.json"
 #  Logs 
-LOGS_DIR             = OUTPUT_ROOT / "logs"
+LOGS_DIR             = OUTPUT_ROOT / #logs folder name here, e.g., "logs"
 #  Exported models 
-EXPORTED_MODELS_DIR  = OUTPUT_ROOT / "exported_models"
+EXPORTED_MODELS_DIR  = OUTPUT_ROOT / #exported_models folder name here, e.g., "exported_models"
 ONNX_MODEL_PATH      = EXPORTED_MODELS_DIR / "arrhythmia_model.onnx"
 PKL_MODEL_PATH       = EXPORTED_MODELS_DIR / "arrhythmia_model.pkl"
 #  Holter format file paths 
