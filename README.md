@@ -4,7 +4,7 @@
 
 This repository contains the full training pipeline — dataset preprocessing, model architectures, training, evaluation, and ONNX export — for a single-label 11-class arrhythmia classifier operating on 5-second windows of 12-lead ECG data.
 
-> Companion application: [APLIKASI-HOLTER-EKG](#https://github.com/18320033/ekg-holter) — the PyQt5 desktop viewer that consumes the exported ONNX model produced by this repository.
+> Companion application: [APLIKASI-HOLTER-EKG](https://github.com/18320033/ekg-holter) — the PyQt5 desktop viewer that consumes the exported ONNX model produced by this repository.
 
 ---
 
