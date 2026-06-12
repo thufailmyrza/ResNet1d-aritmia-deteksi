@@ -1,7 +1,7 @@
 from pathlib import Path
 import numpy as np
 # BASE PATHS
-PROJECT_ROOT = Path("C:/Users/Myrza/Desktop/project/Project Arrythmia")
+PROJECT_ROOT = Path(#project root path here, e.g., "/path/to/your/project")
 #  Input (Raw Data) 
 PTBXL_ROOT           = PROJECT_ROOT / "RAW DATA" / "ptb-xl"
 PTBXL_DATABASE       = PTBXL_ROOT / "ptbxl_database.csv"
@@ -45,24 +45,17 @@ HOLTER_SAMPLING_RATE = 500
 ECG_CHANNELS = ['I', 'II', 'III', 'aVR', 'aVF', 'aVL',
                  'V1', 'V2', 'V3', 'V4', 'V5', 'V6']
 NUM_CHANNELS = len(ECG_CHANNELS)
-
 BYTES_PER_SAMPLE = 2               
 BYTES_PER_RECORD = NUM_CHANNELS * BYTES_PER_SAMPLE  
-
 SECONDS_PER_SPLIT  = 12 * 60 * 60  
 SAMPLES_PER_SPLIT  = SECONDS_PER_SPLIT * HOLTER_SAMPLING_RATE
-
-# Window size harus cocok dengan window_size di app
-WINDOW_SIZE = 2500   # 5 detik @ 500 Hz
-
+WINDOW_SIZE = 2500   
 # ADC gain
 ADC_GAIN_DEVICE = 0.0025    
 ADC_GAIN_INT16  = 1000      
 ADC_GAIN        = ADC_GAIN_INT16    
-
 INT16_TO_MV = 1.0 / ADC_GAIN_INT16   
-
-# ARRHYTHMIA CLASS MAPPING  –  11 kelas, single-label
+# ARRHYTHMIA CLASS MAPPING 
 ARRHYTHMIA_CLASSES = {
     0:  'normal',
     1:  'premature_beat',
@@ -76,13 +69,9 @@ ARRHYTHMIA_CLASSES = {
     9:  'bradycardia',
     10: 'atrial_fibrillation',
 }
-
 ARRHYTHMIA_LABELS      = [ARRHYTHMIA_CLASSES[i] for i in range(11)]
 NUM_ARRHYTHMIA_CLASSES = len(ARRHYTHMIA_CLASSES)   # 11
-
-# Nama → class index
 CLASS_TO_IDX = {v: k for k, v in ARRHYTHMIA_CLASSES.items()}
-
 ARRHYTHMIA_PRIORITY = [
     10,  # atrial_fibrillation   
     9,   # bradycardia
@@ -96,10 +85,8 @@ ARRHYTHMIA_PRIORITY = [
     1,   # premature_beat
     0,   # normal                
 ]
-
-# Backward-compat aliases (untuk kode lama yang mengimpor nama ini)
-ARRHYTHMIA_BIT_MAPPING = CLASS_TO_IDX   # nama → class index
+# Backward-compat aliases
+ARRHYTHMIA_BIT_MAPPING = CLASS_TO_IDX  
 NUM_CLASSES = NUM_ARRHYTHMIA_CLASSES
-
 ARRHYTHMIA_BIN_DTYPE = np.int32    
-NORMAL_FLAG_VALUE    = 1           
+NORMAL_FLAG_VALUE    = 1
