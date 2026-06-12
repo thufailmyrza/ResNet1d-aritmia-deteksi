@@ -16,9 +16,9 @@ from config_path import (
 from model.resnet1d import build_model
 
 # ── Load checkpoint ──────────────────────────────────────────────────
-CHECKPOINT  = CNN_BEST_MODEL   # atau ganti path manual
-MODEL_TYPE  = "resnet152"      # sesuaikan: standard / improved / resnet152
-OUTPUT_PATH = EXPORTED_MODELS_DIR / "arrhythmia_model_single.onnx"
+CHECKPOINT  = r"C:\Users\Myrza\Desktop\project\Project Arrythmia\OUTPUT\checkpoints\best_model.pth"   # atau ganti path manual
+MODEL_TYPE  = "standard"      # sesuaikan: standard / improved / resnet152
+OUTPUT_PATH = EXPORTED_MODELS_DIR / "arrhythmia_model_single_standard.onnx"
 
 print(f"Loading checkpoint: {CHECKPOINT}")
 ckpt  = torch.load(CHECKPOINT, map_location="cpu", weights_only=False)

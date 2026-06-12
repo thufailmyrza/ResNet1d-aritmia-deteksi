@@ -1,8 +1,10 @@
-# probe_xirka_bin.py
+# probe_xirka.py
 import numpy as np
 from pathlib import Path
 
-files = sorted(Path(r"C:\Users\Myrza\Desktop\project\Project Arrythmia\OUTPUT\ECG Record").glob("ecg_*.bin"))
+# files = sorted(Path(r"C:\Users\Myrza\Desktop\project\Project Arrythmia\OUTPUT\ECG Record").glob("ecg_*.bin"))
+# files = sorted(Path(r"C:\Users\Myrza\Desktop\project\Project Arrythmia\OUTPUT\INCART_FORMAT\batch_00000").glob("*.bin"))
+files = sorted(Path(r"C:\Users\Myrza\Desktop\project\Project Arrythmia\OUTPUT\HOLTER_V5\batch_00001").glob("*.bin"))
 
 ADC_TO_MV = 0.0025
 

@@ -1,16 +1,3 @@
-"""
-holter_dataset.py
-Dataset PyTorch untuk ECG Holter – single-label 11 kelas.
-
-Perubahan dari v3:
-  1. Bug fix: smote_windows/smote_labels diinisialisasi None (bukan boolean True).
-  2. Bug fix: get_class_weights() dan get_sampler() dihitung dari window REAL saja
-     (bukan termasuk SMOTE synthetic). SMOTE menggelembungkan kelas minoritas
-     sehingga kelas Normal tampak "langka" → weight Normal naik drastis → loss meledak.
-  3. Normalisasi weights: mean=1.0 (lebih stabil vs sum=N_classes).
-  4. n_real_windows disimpan untuk memisahkan real vs synthetic.
-"""
-
 import torch
 from torch.utils.data import Dataset, WeightedRandomSampler
 import numpy as np
@@ -23,35 +10,15 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from config_path import (
-    NUM_ARRHYTHMIA_CLASSES,   # 11
-    NUM_CHANNELS,             # 12
-    ARRHYTHMIA_CLASSES,       # dict idx→name
-    ARRHYTHMIA_LABELS,        # list[str], indeks = class idx
-    INT16_TO_MV,              # = 1/1000 = 0.001
-    WINDOW_SIZE,              # 2500
+    NUM_ARRHYTHMIA_CLASSES,   
+    NUM_CHANNELS,             
+    ARRHYTHMIA_CLASSES,       
+    ARRHYTHMIA_LABELS,        
+    INT16_TO_MV,              
+    WINDOW_SIZE,              
     SMOTE_CACHE_DIR,
 )
-
-# DATASET UTAMA  –  ORIGINAL + OPTIONAL SMOTE SYNTHETIC
 class HolterECGDataset(Dataset):
-    """
-    Dataset ECG Holter, single-label (11 kelas), skala mV.
-
-    Setiap item yang dikembalikan:
-      ecg   : torch.Tensor shape (12, WINDOW_SIZE) float32  –  mV scale
-      label : torch.LongTensor scalar  –  class index 0–10
-
-    Args:
-        labels_csv:           Path ke CSV split (train/val/test).
-        data_root:            Root folder data biner Holter.
-        window_size:          Panjang window dalam sampel (default WINDOW_SIZE=2500).
-        stride:               Stride antar window (sampel).
-        augment:              Aktifkan augmentasi.
-        oversample_minority:  Buat lebih banyak window dari rekaman aritmia.
-        smote_npy_dir:        Folder berisi synthetic_windows.npy &
-                              synthetic_labels.npy dari SMOTE (None = tidak pakai).
-    """
-
     def __init__(self, labels_csv, data_root,
                  window_size: int = WINDOW_SIZE,
                  stride:      int = 500,
@@ -66,83 +33,52 @@ class HolterECGDataset(Dataset):
         self.augment            = augment
         self.oversample_minority = oversample_minority
 
-        # Bangun indeks window dari rekaman asli
         self._build_window_index()
 
-        # Catat jumlah window real (sebelum SMOTE) untuk class weights
         self.n_real_windows = len(self.window_index)
 
-        # Tambahkan synthetic SMOTE windows jika ada
-        self.smote_windows = None   # None = belum diload
+        self.smote_windows = None   
         self.smote_labels  = None
         if smote_npy_dir is not None:
             self._load_smote_windows(Path(smote_npy_dir))
 
-        # Hitung sampling weights untuk WeightedRandomSampler
         self._compute_sample_weights()
 
-    # Bangun Indeks Window 
     @staticmethod
     def _resolve_bin_path(row, data_root: Path):
-        """
-        Resolve path ke file .bin dari baris CSV.
-
-        Mendukung dua format kolom:
-          Format A (PTB-XL)  : batch_dir + output_filename  → data_root/batch_dir/output_filename
-          Format B (INCART)  : filepath (path absolut)      → langsung dipakai
-
-        Urutan coba:
-          1. filepath absolut (INCART)
-          2. data_root / batch_dir / output_filename (PTB-XL)
-          3. INCART_FORMAT_DIR / batch_dir / output_filename (jika source=incart)
-
-        Returns Path atau None jika tidak bisa di-resolve.
-        """
         from config_path import INCART_FORMAT_DIR, HOLTER_FORMAT_DIR
 
-        # Prioritas 1: filepath absolut (INCART rows)
         fp = row.get('filepath', None)
         if fp is not None and str(fp) not in ('', 'nan'):
             p = Path(str(fp))
             if p.exists():
                 return p
 
-        # Prioritas 2: data_root / batch_dir / output_filename (PTB-XL rows)
         batch_dir = row.get('batch_dir', None)
         out_fname = row.get('output_filename', None)
         if (batch_dir is not None and str(batch_dir) not in ('', 'nan')
                 and out_fname is not None and str(out_fname) not in ('', 'nan')):
-            # Tentukan root yang benar berdasarkan source atau nama file
             source = str(row.get('source', '')).lower()
             fname  = str(out_fname)
 
             if source == 'incart' or fname.startswith('incart_'):
-                # INCART binary ada di INCART_FORMAT_DIR
                 p = INCART_FORMAT_DIR / str(batch_dir) / fname
             else:
-                # PTB-XL binary ada di data_root (HOLTER_FORMAT_DIR)
                 p = data_root / str(batch_dir) / fname
 
             if p.exists():
                 return p
 
-            # Last resort: coba keduanya
             for root in [data_root, INCART_FORMAT_DIR, HOLTER_FORMAT_DIR]:
                 p = root / str(batch_dir) / fname
                 if p.exists():
                     return p
 
-        return None  # tidak bisa di-resolve
+        return None
 
     @staticmethod
     def _resolve_class_label(row) -> int:
-        """
-        Resolve class label dari baris CSV.
 
-        Mendukung dua nama kolom:
-          'class_label'  → PTB-XL format
-          'class_index'  → INCART / merged format
-        """
         if 'class_label' in row and str(row['class_label']) not in ('', 'nan'):
             return int(row['class_label'])
         if 'class_index' in row and str(row['class_index']) not in ('', 'nan'):
@@ -150,17 +86,7 @@ class HolterECGDataset(Dataset):
         return 0  # fallback normal
 
     def _build_window_index(self):
-        """
-        Bangun list window dari semua rekaman di labels_csv.
-        Rekaman dengan kelas minoritas mendapat stride lebih kecil
-        (= lebih banyak window) jika oversample_minority=True.
-
-        Mendukung kolom CSV dari PTB-XL (batch_dir + output_filename + class_label)
-        maupun INCART / merged (filepath + class_index).
-        """
-        self.window_index = []  # list of dict
-
-        # Tentukan kolom class yang tersedia
+        self.window_index = []  
         has_class_label = 'class_label' in self.labels_df.columns
         has_class_index = 'class_index' in self.labels_df.columns
         if not has_class_label and not has_class_index:
@@ -169,7 +95,6 @@ class HolterECGDataset(Dataset):
                 "Jalankan merge_dataset.py untuk memastikan kolom terstandarisasi."
             )
 
-        # Hitung jumlah rekaman per kelas untuk oversample factor
         cls_col      = 'class_label' if has_class_label else 'class_index'
         class_counts = self.labels_df[cls_col].value_counts()
         max_count    = class_counts.max()
@@ -185,7 +110,6 @@ class HolterECGDataset(Dataset):
             n_samples  = bin_path.stat().st_size // (NUM_CHANNELS * 2)
 
             if self.oversample_minority and cls != 0:
-                # Semakin minoritas → stride lebih kecil → lebih banyak window
                 cls_count = class_counts.get(cls, 1)
                 ratio     = min(max_count / max(cls_count, 1), 8.0)
                 stride    = max(125, int(self.stride / ratio))
@@ -199,13 +123,10 @@ class HolterECGDataset(Dataset):
                     'bin_path':    bin_path,
                     'start':       w * stride,
                     'class_label': cls,
-                    'is_real':     True,    # bukan synthetic
+                    'is_real':     True,   
                 })
-
         if skipped > 0:
             print(f"  ⚠ {skipped} baris CSV dilewati (file tidak ditemukan atau path invalid)")
-
-    # Load SMOTE Synthetic Windows 
 
     def _load_smote_windows(self, smote_dir: Path):
         """
@@ -225,7 +146,6 @@ class HolterECGDataset(Dataset):
         self.smote_windows = np.load(w_path, mmap_mode='r')  # (N, 12, W)
         self.smote_labels  = np.load(l_path)                  # (N,)
 
-        # Tambahkan ke window_index
         for i in range(len(self.smote_labels)):
             self.window_index.append({
                 'bin_path':    None,
@@ -289,7 +209,6 @@ class HolterECGDataset(Dataset):
                          mode='constant')
 
         ecg = raw.reshape(-1, NUM_CHANNELS).T   # (12, window_size)
-        # int16 / 1000 = mV  (konsisten dengan ecg_signal_mv di app)
         return ecg.astype(np.float32) * INT16_TO_MV
 
     # Augmentasi 
